@@ -127,6 +127,10 @@ static inline u32 __raw_readl(const volatile void __iomem *addr)
 /*
  * Architecture ioremap implementation.
  */
+/* IAMROOT-12CD (2016-08-29):
+ * --------------------------
+ * MT : mem_type의 약자로 생각됨.
+ */
 #define MT_DEVICE		0
 #define MT_DEVICE_NONSHARED	1
 #define MT_DEVICE_CACHED	2

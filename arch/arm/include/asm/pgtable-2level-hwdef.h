@@ -38,6 +38,11 @@
 #define PMD_SECT_XN		(_AT(pmdval_t, 1) << 4)		/* v6 */
 #define PMD_SECT_AP_WRITE	(_AT(pmdval_t, 1) << 10)
 #define PMD_SECT_AP_READ	(_AT(pmdval_t, 1) << 11)
+/* IAMROOT-12CD (2016-08-29):
+ * --------------------------
+ * Type EXtension field, TEX[2:0]
+ *  PMD_SECT_BUFFERABLE, PMD_SECT_CACHEABLE의 확장 필드로 조합하여 쓰인다.
+ */
 #define PMD_SECT_TEX(x)		(_AT(pmdval_t, (x)) << 12)	/* v5 */
 #define PMD_SECT_APX		(_AT(pmdval_t, 1) << 15)	/* v6 */
 #define PMD_SECT_S		(_AT(pmdval_t, 1) << 16)	/* v6 */

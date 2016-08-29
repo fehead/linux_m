@@ -653,6 +653,11 @@ static void __init build_mem_type_table(void)
 	 * hyp_device_pgprot = PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED |
 	 *	L_PTE_SHARED = 0x653
 	 * s2_device_pgprot = L_PTE_SHARED = 0x400
+	 *
+	 * 하이퍼바이저(hypervisor)는 호스트 컴퓨터에서 다수의 운영 체제(
+	 *	operating system)를 동시에 실행하기 위한 논리적 플랫폼(platform)
+	 *	을 말한다. 가상화 머신 모니터(virtual machine monitor, 줄여서
+	 *	VMM)라고도 부른다.
 	 */
 	hyp_device_pgprot = mem_types[MT_DEVICE].prot_pte;
 	s2_device_pgprot = mem_types[MT_DEVICE].prot_pte_s2;

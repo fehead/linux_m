@@ -44,6 +44,11 @@
  *  PMD_SECT_BUFFERABLE, PMD_SECT_CACHEABLE의 확장 필드로 조합하여 쓰인다.
  */
 #define PMD_SECT_TEX(x)		(_AT(pmdval_t, (x)) << 12)	/* v5 */
+/* IAMROOT-12CD (2016-09-03):
+ * --------------------------
+ * APX(AP eXtension)
+ * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0360f/CHDDEFEE.html
+ */
 #define PMD_SECT_APX		(_AT(pmdval_t, 1) << 15)	/* v6 */
 #define PMD_SECT_S		(_AT(pmdval_t, 1) << 16)	/* v6 */
 #define PMD_SECT_nG		(_AT(pmdval_t, 1) << 17)	/* v6 */

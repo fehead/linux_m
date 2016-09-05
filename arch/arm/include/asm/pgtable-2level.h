@@ -70,6 +70,103 @@
  * until either the TLB entry is evicted under pressure, or a context
  * switch which changes the user space mapping occurs.
  */
+/*
+ * Hardware-wise, we have a two level page table structure, where the first
+ * level has 4096 entries, and the second level has 256 entries.  Each entry
+ * is one 32-bit word.  Most of the bits in the second level entry are used
+ * by hardware, and there aren't any "accessed" and "dirty" bits.
+ *
+ * 하드웨어 측면에서 보면, 2 level 페이지 테이블 구조입니다. 1 level은 4096 엔트
+ * 리를 가지고 있고, 2 level은 256개의 엔트리를 가지고 있습니다.
+ * 각각은 32-bit word입니다. 2 level 엔트리의 대부분의 bit는 하드웨어에 의해 쓰
+ * 이고, "accessed"는 물론 "dirty" bit도 없습니다.
+ *
+ * Linux on the other hand has a three level page table structure, which can
+ * be wrapped to fit a two level page table structure easily - using the PGD
+ * and PTE only.  However, Linux also expects one "PTE" table per page, and
+ * at least a "dirty" bit.
+ *
+ * 반면에, 리눅스에서는 2 레벨 페이지 테이블 구조에 맞게 쉽게 래핑이 가능한 3 레
+ * 벨 페이지 테이블 구조(PGD와 PTE만 사용) 입니다. 그러나, 리눅스는 하나의
+ * 페이지 당 하나의 "PTE" 테이블과 최소한 "dirty" 비트가 있기를 기대합니다.
+ *
+ * Therefore, we tweak the implementation slightly - we tell Linux that we
+ * have 2048 entries in the first level, each of which is 8 bytes (iow, two
+ * hardware pointers to the second level.)  The second level contains two
+ * hardware PTE tables arranged contiguously, preceded by Linux versions
+ * which contain the state information Linux needs.  We, therefore, end up
+ * with 512 entries in the "PTE" level.
+ *
+ * 따라서, 리눅스에서는 각각 8바이트를 가지는 1 레벨 2048 엔트리를 가지도록 약간
+ * 조정합니다. (즉, 2 레벨의 2개의 하드웨어 포인터) 2 레벨은 연속적으로 배치 된
+ * 2 레벨 하드웨어 PTE테이블과, 리눅스에 필요한 상태 정보를 포함하는 리눅스 이전
+ * 버전 것을 포함하고 있습니다. 따라서, 결국 "PTE" 레벨 512개 엔트리가 됩니다
+ *
+ * This leads to the page tables having the following layout:
+ *
+ * 페이지 테이블 레이아웃:
+ *
+ *    pgd             pte
+ * |        |
+ * +--------+
+ * |        |       +------------+ +0
+ * +- - - - +       | Linux pt 0 |
+ * |        |       +------------+ +1024
+ * +--------+ +0    | Linux pt 1 |
+ * |        |-----> +------------+ +2048
+ * +- - - - + +4    |  h/w pt 0  |
+ * |        |-----> +------------+ +3072
+ * +--------+ +8    |  h/w pt 1  |
+ * |        |       +------------+ +4096
+ *
+ * See L_PTE_xxx below for definitions of bits in the "Linux pt", and
+ * PTE_xxx for definitions of bits appearing in the "h/w pt".
+ *
+ * "Linux pt" 비트 정의는 L_PTE_xxx 라고 정의된 것을, 그리고 "h/w pt"를 나타내는
+ * 정의는 PTE_xxx를 봐 주세요.
+ *
+ * PMD_xxx definitions refer to bits in the first level page table.
+ *
+ * PMD_xxx 정의는 1 레벨 페이지 테이블을 뜻합니다.
+ *
+ * The "dirty" bit is emulated by only granting hardware write permission
+ * iff the page is marked "writable" and "dirty" in the Linux PTE.  This
+ * means that a write to a clean page will cause a permission fault, and
+ * the Linux MM layer will mark the page dirty via handle_pte_fault().
+ * For the hardware to notice the permission change, the TLB entry must
+ * be flushed, and ptep_set_access_flags() does that for us.
+ *
+ * "dirty" 비트는 하드웨어 쓰기 권한을 가졌을 때만 에뮬레이트 됩니다. 이것은 리
+ * 눅스 PTE에서 "writable"과 "dirty"이 표시 된것과 동일합니다.(?) 이는 clean 페
+ * 이지를 쓰는것은 권한 fault를 야기시키고, 리눅스 MM 레이어는
+ * handle_pte_fault()를 통해 dirty 페이지를 표시합니다. 하드웨어는 권한 변경을
+ * 통지하는 경우, TLB 엔트리는 flush 되어야 하며, ptep_set_access_flags()가 그것
+ * 을 합니다.
+ *
+ * The "accessed" or "young" bit is emulated by a similar method; we only
+ * allow accesses to the page if the "young" bit is set.  Accesses to the
+ * page will cause a fault, and handle_pte_fault() will set the young bit
+ * for us as long as the page is marked present in the corresponding Linux
+ * PTE entry.  Again, ptep_set_access_flags() will ensure that the TLB is
+ * up to date.
+ *
+ * "accessed" 나  "young" 비트는 비슷한 방법으로 에뮬레이트 된다. 페이지에
+ * "young" 비트가 설정 되어있으면 접근을 허용합니다. 페이지에 접근 하는것은
+ * fault를 야기시키고, handle_pte_fault()는 Linux PTE 엔트리에 해당 되는
+ * PRESENT로 표시 되는 지는 한 "young" 비트를 설정 할 것입니다. 또 한편,
+ * ptep_set_access_flags() 는 TLB가 최신인 것을 보장합니다.
+ *
+ * However, when the "young" bit is cleared, we deny access to the page
+ * by clearing the hardware PTE.  Currently Linux does not flush the TLB
+ * for us in this case, which means the TLB will retain the transation
+ * until either the TLB entry is evicted under pressure, or a context
+ * switch which changes the user space mapping occurs.
+ *
+ * 그러나, "young" 비트가 clear일때, 하드웨어 PTE를 clear하여 접근을 거부합니다.
+ * 이경우에 리눅스는 TLB를 flush하지 않습니다. - TLB는 TLB엔트리가 퇴거 압박을
+ * 받거나, user space 맵핑으로 변경되는 컨텍스트 전환이 되거나 둘중 하나가 될때
+ * 까지 트랜잭션을 유지합니다.
+ */
 #define PTRS_PER_PTE		512
 #define PTRS_PER_PMD		1
 #define PTRS_PER_PGD		2048

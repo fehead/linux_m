@@ -1251,10 +1251,6 @@ void __init hyp_mode_check(void)
 #endif
 }
 
-/* IAMROOT-12D (2016-05-21):
- * --------------------------
- * setup_processor()까지 함.
- */
 void __init setup_arch(char **cmdline_p)
 {
 	const struct machine_desc *mdesc;

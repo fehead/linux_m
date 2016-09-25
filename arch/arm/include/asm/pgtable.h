@@ -191,11 +191,20 @@ extern struct page *empty_zero_page;
 extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 
 /* to find an entry in a page-table-directory */
+/* IAMROOT-12CD (2016-09-25):
+ * --------------------------
+ * (addr >> 21)
+ */
 #define pgd_index(addr)		((addr) >> PGDIR_SHIFT)
 
 #define pgd_offset(mm, addr)	((mm)->pgd + pgd_index(addr))
 
 /* to find an entry in a kernel page-table-directory */
+/* IAMROOT-12CD (2016-09-25):
+ * --------------------------
+ * addr = 0x80000000
+ * init_mm.pgd = 0x80004000
+ */
 #define pgd_offset_k(addr)	pgd_offset(&init_mm, addr)
 
 #define pmd_none(pmd)		(!pmd_val(pmd))

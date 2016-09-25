@@ -1245,6 +1245,9 @@ static void __init create_mapping(struct map_desc *md)
 	 * --------------------------
 	 * md->virtual = 0x80000000
 	 * addr = 0x80000000
+	 * phys = 0
+	 * length = 
+	 * md.length = 0x900000 + (0x80000000 & ~PAGE_MASK) = 0x900000
 	 */
 	addr = md->virtual & PAGE_MASK;
 	phys = __pfn_to_phys(md->pfn);

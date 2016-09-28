@@ -35,13 +35,17 @@
 #define CR_XP	(1 << 23)	/* Extended page tables			*/
 #define CR_VE	(1 << 24)	/* Vectored interrupts			*/
 #define CR_EE	(1 << 25)	/* Exception (Big) Endian		*/
-#define CR_TRE	(1 << 28)	/* TEX remap enable			*/
+#define CR_TRE	(1 << 28)	/* TEX(Type EXtension field) remap enable */
 #define CR_AFE	(1 << 29)	/* Access flag enable			*/
 #define CR_TE	(1 << 30)	/* Thumb exception enable		*/
 
 #ifndef __ASSEMBLY__
 
 #if __LINUX_ARM_ARCH__ >= 4
+/* IAMROOT-12CD (2016-09-24):
+ * --------------------------
+ * cr(0x10c5387d & (1 << 13)) = 0x2000
+ */
 #define vectors_high()	(get_cr() & CR_V)
 #else
 #define vectors_high()	(0)
@@ -59,6 +63,8 @@ extern unsigned long cr_alignment;	/* defined in entry-armv.S */
  *  The SCTLR is another of a number of registers that are accessed using CP15,
  *  and controls standard memory, system facilities and provides status
  *  information for functions implemented in the core.
+ * SCTLR는 CP15를 사용하여 액세스되는 레지스터의 중 하나 이며, 표준 메모리 시스
+ * 템의 기능을 제어하고, 상기 코어에서 구현되는 기능에 대한 상태 정보를 제공한다
  *
  *    30                20            10           0
  *  1 0 9 8 7 6 5 4  2 1 0     4 3 2 1 0      3 2 1 0

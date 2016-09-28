@@ -39,15 +39,34 @@
 
 #include "cma.h"
 
+/* IAMROOT-12CD (2016-08-17):
+ * --------------------------
+ * MAX_CMA_AREAS=8
+ * [0] = {base_pfn = 0x3b800, count = 0x800, order_per_bit = 0x0, ...},
+ *		cma 영역 0~8M(원래 할당은 5M지만 4M alignment 되어서 8M가 됨)
+ *
+ */
 struct cma cma_areas[MAX_CMA_AREAS];
+/* IAMROOT-12CD (2016-08-27):
+ * --------------------------
+ * cma_area_count = 1  : 0 번째는 cma 영역 (0~8M)
+ */
 unsigned cma_area_count;
 static DEFINE_MUTEX(cma_mutex);
 
+/* IAMROOT-12CD (2016-08-22):
+ * --------------------------
+ * 페이지 단위로 된 cma base 주소를 메모리 주소로 변환
+ */
 phys_addr_t cma_get_base(const struct cma *cma)
 {
 	return PFN_PHYS(cma->base_pfn);
 }
 
+/* IAMROOT-12CD (2016-08-22):
+ * --------------------------
+ * 페이지 단위로 된 cma size를 메모리 사이즈로 변환
+ */
 unsigned long cma_get_size(const struct cma *cma)
 {
 	return cma->count << PAGE_SHIFT;
@@ -166,6 +185,10 @@ core_initcall(cma_init_reserved_areas);
  *
  * This function creates custom contiguous area from already reserved memory.
  */
+/* IAMROOT-12CD (2016-08-27):
+ * --------------------------
+ * base= 952M, size=8M, order_per_bit= 0, res_cma= &dma_contiguous_default_area
+ */
 int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 				 unsigned int order_per_bit,
 				 struct cma **res_cma)
@@ -182,6 +205,10 @@ int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 	if (!size || !memblock_is_region_reserved(base, size))
 		return -EINVAL;
 
+	/* IAMROOT-12CD (2016-08-27):
+	 * --------------------------
+	 * alignment = PAGE_SIZE << 10 = 4M
+	 */
 	/* ensure minimal alignment requied by mm core */
 	alignment = PAGE_SIZE << max(MAX_ORDER - 1, pageblock_order);
 
@@ -197,9 +224,23 @@ int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 	 * subsystems (like slab allocator) are available.
 	 */
 	cma = &cma_areas[cma_area_count];
+	/* IAMROOT-12CD (2016-08-27):
+	 * --------------------------
+	 * base = 952M
+	 * cma->base_pfn = 952M >> 12 = 0x3b800
+	 * cma->size = 8M >> 12 = 2k(0x800)
+	 * cma->order_per_bit = 0
+	 * totalcma_pages = 2k(0x800)
+	 */
 	cma->base_pfn = PFN_DOWN(base);
 	cma->count = size >> PAGE_SHIFT;
 	cma->order_per_bit = order_per_bit;
+	/* IAMROOT-12CD (2016-08-27):
+	 * --------------------------
+	 * res_cma= &dma_contiguous_default_area
+	 * *res_cma = &cma_areas[0];
+	 * dma_contiguous_default_area = &cma_areas[0]
+	 */
 	*res_cma = cma;
 	cma_area_count++;
 	totalcma_pages += (size / PAGE_SIZE);
@@ -225,11 +266,21 @@ int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
  * If @fixed is true, reserve contiguous area at exactly @base.  If false,
  * reserve in range from @base to @limit.
  */
+/* IAMROOT-12CD (2016-08-20):
+ * --------------------------
+ * CMA (Contiguous Memory Allocation)
+ * base= 0, size= 5M(0x500000), limit= 0xffffffff, alignment= 0, order_per_bit=0
+ * fixed= false, res_cms= &dma_contiguous_default_area
+ */
 int __init cma_declare_contiguous(phys_addr_t base,
 			phys_addr_t size, phys_addr_t limit,
 			phys_addr_t alignment, unsigned int order_per_bit,
 			bool fixed, struct cma **res_cma)
 {
+	/* IAMROOT-12CD (2016-08-17):
+	 * --------------------------
+	 * memblock_end = 960M(0x3c000000)
+	 */
 	phys_addr_t memblock_end = memblock_end_of_DRAM();
 	phys_addr_t highmem_start;
 	int ret = 0;
@@ -244,6 +295,10 @@ int __init cma_declare_contiguous(phys_addr_t base,
 	 */
 	highmem_start = __pa_nodebug(high_memory);
 #else
+	/* IAMROOT-12CD (2016-08-17):
+	 * --------------------------
+	 * highmem_start = __pa(0xbc000000) = 960M(0x3c000000)
+	 */
 	highmem_start = __pa(high_memory);
 #endif
 	pr_debug("%s(size %pa, base %pa, limit %pa alignment %pa)\n",
@@ -266,9 +321,28 @@ int __init cma_declare_contiguous(phys_addr_t base,
 	 * migratetype page by page allocator's buddy algorithm. In the case,
 	 * you couldn't get a contiguous memory, which is not what we want.
 	 */
+	/* IAMROOT-12CD (2016-08-20):
+	 * --------------------------
+	 * alignment = 4M(0x400000)
+	 * base = 0, size=5M
+	 */
 	alignment = max(alignment,
 		(phys_addr_t)PAGE_SIZE << max(MAX_ORDER - 1, pageblock_order));
+	/* IAMROOT-12CD (2016-08-17):
+	 * --------------------------
+	 * ALIGN(x, a) (x+a-1)&~(a-1)
+	 * ALIGN(0, 4M) = (0+4M-1) & ~(4M-1) = 0x3fffff & 0xffc00000 = 0
+	 * ALIGN(5M, 4M) = (5M+4M-1) & ~(4M-1) = 0x8fffff & 0xffc00000 = 8M
+	 *
+	 * base = 0
+	 * size = 0x800000(8M)
+	 * limit = 0xffc00000
+	 */
 	base = ALIGN(base, alignment);
+	/* IAMROOT-12CD (2016-08-20):
+	 * --------------------------
+	 * size = 8M
+	 */
 	size = ALIGN(size, alignment);
 	limit &= ~(alignment - 1);
 
@@ -283,6 +357,10 @@ int __init cma_declare_contiguous(phys_addr_t base,
 	 * If allocating at a fixed base the request region must not cross the
 	 * low/high memory boundary.
 	 */
+	/* IAMROOT-12CD (2016-08-20):
+	 * --------------------------
+	 * fixed 이면서 highmem에 걸쳐 있으면 안된다.
+	 */
 	if (fixed && base < highmem_start && base + size > highmem_start) {
 		ret = -EINVAL;
 		pr_err("Region at %pa defined on low/high memory boundary (%pa)\n",
@@ -296,6 +374,10 @@ int __init cma_declare_contiguous(phys_addr_t base,
 	 * checks.
 	 */
 	if (limit == 0 || limit > memblock_end)
+		/* IAMROOT-12CD (2016-08-20):
+		 * --------------------------
+		 * limit = 0x3c000000(960M)
+		 */
 		limit = memblock_end;
 
 	/* Reserve memory */
@@ -314,6 +396,10 @@ int __init cma_declare_contiguous(phys_addr_t base,
 		 * try allocating from high memory first and fall back to low
 		 * memory in case of failure.
 		 */
+		/* IAMROOT-12CD (2016-08-27):
+		 * --------------------------
+		 * base = 0, highmem_start = 960M, limit = 960M
+		 */
 		if (base < highmem_start && limit > highmem_start) {
 			addr = memblock_alloc_range(size, alignment,
 						    highmem_start, limit);
@@ -321,6 +407,11 @@ int __init cma_declare_contiguous(phys_addr_t base,
 		}
 
 		if (!addr) {
+			/* IAMROOT-12CD (2016-08-27):
+			 * --------------------------
+			 * size= 8M, alignment= 4M, base= 0,
+			 * limit: 0x3c000000(960M)
+			 */
 			addr = memblock_alloc_range(size, alignment, base,
 						    limit);
 			if (!addr) {
@@ -334,9 +425,18 @@ int __init cma_declare_contiguous(phys_addr_t base,
 		 * objects but this address isn't mapped and accessible
 		 */
 		kmemleak_ignore(phys_to_virt(addr));
+		/* IAMROOT-12CD (2016-08-27):
+		 * --------------------------
+		 * base = 952M(cma, dma 시작주소)
+		 */
 		base = addr;
 	}
 
+	/* IAMROOT-12CD (2016-08-27):
+	 * --------------------------
+	 * base= 952M, size=8M, order_per_bit= 0,
+	 *	res_cma= &dma_contiguous_default_area
+	 */
 	ret = cma_init_reserved_mem(base, size, order_per_bit, res_cma);
 	if (ret)
 		goto err;

@@ -42,7 +42,17 @@
  * area for the same reason. ;)
  */
 #define VMALLOC_OFFSET		(8*1024*1024)
+/* IAMROOT-12CD (2016-09-24):
+ * --------------------------
+ * high_memory = 0xBC000000, VMALLOC_OFFSET=8M
+ * VMALLOC_START = 0xBC000000 + 8M --> 968M의 virtual addr
+ * VMALLOC_START = 0xbc800000
+ */
 #define VMALLOC_START		(((unsigned long)high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1))
+/* IAMROOT-12CD (2016-09-24):
+ * --------------------------
+ * VMALLOC_END = 4080M (4G - 16M)
+ */
 #define VMALLOC_END		0xff000000UL
 
 #define LIBRARY_TEXT_START	0x0c000000
@@ -144,6 +154,13 @@ extern pgprot_t phys_mem_access_prot(struct file *file, unsigned long pfn,
  *  2) If we could do execute protection, then read is implied
  *  3) write implies read permissions
  */
+/* IAMROOT-12CD (2016-09-10):
+ * --------------------------
+ * 대부분의 ARM 하드웨어 상에서는...
+ * 1) 실행 보호를 할수 없다.
+ * 2) 만약 실행보호를 할수 있다면, 읽기는 묵시적로 가능하다.
+ * 3) 쓰기가 가능하면 읽기는 묵시적으로 가능하다.
+ */
 #define __P000  __PAGE_NONE
 #define __P001  __PAGE_READONLY
 #define __P010  __PAGE_COPY
@@ -174,11 +191,20 @@ extern struct page *empty_zero_page;
 extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
 
 /* to find an entry in a page-table-directory */
+/* IAMROOT-12CD (2016-09-25):
+ * --------------------------
+ * (addr >> 21)
+ */
 #define pgd_index(addr)		((addr) >> PGDIR_SHIFT)
 
 #define pgd_offset(mm, addr)	((mm)->pgd + pgd_index(addr))
 
 /* to find an entry in a kernel page-table-directory */
+/* IAMROOT-12CD (2016-09-25):
+ * --------------------------
+ * addr = 0x80000000
+ * init_mm.pgd = 0x80004000
+ */
 #define pgd_offset_k(addr)	pgd_offset(&init_mm, addr)
 
 #define pmd_none(pmd)		(!pmd_val(pmd))

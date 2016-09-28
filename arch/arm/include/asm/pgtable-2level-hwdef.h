@@ -30,10 +30,25 @@
 #define PMD_SECT_PXN    (_AT(pmdval_t, 1) << 0)     /* v7 */
 #define PMD_SECT_BUFFERABLE	(_AT(pmdval_t, 1) << 2)
 #define PMD_SECT_CACHEABLE	(_AT(pmdval_t, 1) << 3)
+/* IAMROOT-12CD (2016-08-27):
+ * --------------------------
+ * Execute never bits int the TLB entry : 1로 설정하면 실행을 못한다.
+ * http://forum.falinux.com/zbxe/?mid=lecture_tip&page=9&document_srl=555371
+ */
 #define PMD_SECT_XN		(_AT(pmdval_t, 1) << 4)		/* v6 */
 #define PMD_SECT_AP_WRITE	(_AT(pmdval_t, 1) << 10)
 #define PMD_SECT_AP_READ	(_AT(pmdval_t, 1) << 11)
+/* IAMROOT-12CD (2016-08-29):
+ * --------------------------
+ * Type EXtension field, TEX[2:0]
+ *  PMD_SECT_BUFFERABLE, PMD_SECT_CACHEABLE의 확장 필드로 조합하여 쓰인다.
+ */
 #define PMD_SECT_TEX(x)		(_AT(pmdval_t, (x)) << 12)	/* v5 */
+/* IAMROOT-12CD (2016-09-03):
+ * --------------------------
+ * APX(AP eXtension)
+ * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0360f/CHDDEFEE.html
+ */
 #define PMD_SECT_APX		(_AT(pmdval_t, 1) << 15)	/* v6 */
 #define PMD_SECT_S		(_AT(pmdval_t, 1) << 16)	/* v6 */
 #define PMD_SECT_nG		(_AT(pmdval_t, 1) << 17)	/* v6 */
@@ -44,6 +59,10 @@
 #define PMD_SECT_BUFFERED	(PMD_SECT_BUFFERABLE)
 #define PMD_SECT_WT		(PMD_SECT_CACHEABLE)
 #define PMD_SECT_WB		(PMD_SECT_CACHEABLE | PMD_SECT_BUFFERABLE)
+/* IAMROOT-12CD (2016-08-23):
+ * --------------------------
+ * PMD_SECT_MINICACHE = 0x100 | 0x8 = 0x1008
+ */
 #define PMD_SECT_MINICACHE	(PMD_SECT_TEX(1) | PMD_SECT_CACHEABLE)
 #define PMD_SECT_WBWA		(PMD_SECT_TEX(1) | PMD_SECT_CACHEABLE | PMD_SECT_BUFFERABLE)
 #define PMD_SECT_NONSHARED_DEV	(PMD_SECT_TEX(2))

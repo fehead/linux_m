@@ -43,6 +43,10 @@
  * TASK_SIZE - the maximum size of a user space task.
  * TASK_UNMAPPED_BASE - the lower boundary of the mmap VM area
  */
+/* IAMROOT-12CD (2016-09-24):
+ * --------------------------
+ * 0x80000000 - 0x01000000(16M) = 0x7f000000
+ */
 #define TASK_SIZE		(UL(CONFIG_PAGE_OFFSET) - UL(SZ_16M))
 #define TASK_UNMAPPED_BASE	ALIGN(TASK_SIZE / 3, SZ_16M)
 
@@ -54,6 +58,12 @@
 /*
  * The module space lives between the addresses given by TASK_SIZE
  * and PAGE_OFFSET - it must be within 32MB of the kernel text.
+ */
+/* IAMROOT-12CD (2016-09-10):
+ * --------------------------
+ * 모듈 공간은 TASK_SIZE와 PAGE_OFFSET 사이에 있다. - 이것은 커널 text 32MB이내
+ * 에 있어야한다.
+ * MODULES_VADDR = 2G-16M = 0x7f000000(2030M)
  */
 #ifndef CONFIG_THUMB2_KERNEL
 #define MODULES_VADDR		(PAGE_OFFSET - SZ_16M)
@@ -211,6 +221,13 @@ extern const void *__pv_table_begin, *__pv_table_end;
 	((((unsigned long)(kaddr) - PAGE_OFFSET) >> PAGE_SHIFT) + \
 	 PHYS_PFN_OFFSET)
 
+/* IAMROOT-12CD (2016-06-25):
+ * --------------------------
+ * __pv_stub((unsigned long) x, t, "sub", __PV_BITS_31_24);
+ * 1: sub	t, from, __PV_BITS_31_24
+ *  t = from - __PV_BITS_31_24
+ *  t = from - 0x81000000
+ */
 #define __pv_stub(from,to,instr,type)			\
 	__asm__("@ __pv_stub\n"				\
 	"1:	" instr "	%0, %1, %2\n"		\
@@ -263,6 +280,10 @@ static inline unsigned long __phys_to_virt(phys_addr_t x)
 	 * assembler expression receives 32 bit argument
 	 * in place where 'r' 32 bit operand is expected.
 	 */
+	/* IAMROOT-12CD (2016-06-25):
+	 * --------------------------
+	 *  t = from - __PV_BITS_31_24
+	 */
 	__pv_stub((unsigned long) x, t, "sub", __PV_BITS_31_24);
 	return t;
 }
@@ -292,7 +313,7 @@ static inline phys_addr_t __virt_to_phys(unsigned long x)
 
 /* IAMROOT-12D (2016-05-26):
  * --------------------------
- * reutrn x - 0x0 + 0x80000000
+ * return x - 0x0 + 0x80000000
  * ex) x = 0x100
  *	0x100 - 0 + 0x80000000 = 0x80000100
  */

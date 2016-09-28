@@ -33,6 +33,24 @@ static inline pte_t get_top_pte(unsigned long va)
 	return *ptep;
 }
 
+/* IAMROOT-12CD (2016-09-10):
+ * --------------------------
+ * 아래 2단계 페이지 테이블 구조에서 PMD + 페이지 테이블 시작주소(0x80004000)
+ * 값을 반환한다.
+ * 
+ * 2단계 페이지 테이블 구조
+ *  31        21 20     12 11        0
+ * +------------+---------+-----------+
+ * | PGD = PMD  |  PTE    | offset    |
+ * +------------+---------+-----------+
+ *
+ *
+ * virt		pgd_offset_k	pud_offset	pmd_offset
+ * 0		0x80004000 + 0	0x80004000 + 0	0x80004000 + 0
+ * 0x200000	0x80004000 + 8	0x80004000 + 8	0x80004000 + 8
+ * 0x400000	0x80004000 + 16	0x80004000 + 16	0x80004000 + 16
+ * 0x600000	0x80004000 + 24	0x80004000 + 24	0x80004000 + 24(8*3)
+ */
 static inline pmd_t *pmd_off_k(unsigned long virt)
 {
 	return pmd_offset(pud_offset(pgd_offset_k(virt), virt), virt);
@@ -86,6 +104,10 @@ extern __init void add_static_vm_early(struct static_vm *svm);
 extern phys_addr_t arm_dma_limit;
 extern unsigned long arm_dma_pfn_limit;
 #else
+/* IAMROOT-12CD (2016-08-20):
+ * --------------------------
+ * 라즈베리파이2는 DMA zone이 없으므로 아래가 맞다.
+ */
 #define arm_dma_limit ((phys_addr_t)~0)
 #define arm_dma_pfn_limit (~0ul >> PAGE_SHIFT)
 #endif

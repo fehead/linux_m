@@ -121,6 +121,10 @@ static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 }
 #endif
 
+/* IAMROOT-12CD (2016-07-23):
+ * --------------------------
+ * pi2에서는 CONFIG_ZONE_DMA 가 없으므로 넘어감.
+ */
 void __init setup_dma_zone(const struct machine_desc *mdesc)
 {
 #ifdef CONFIG_ZONE_DMA
@@ -211,6 +215,10 @@ static void __init arm_memory_present(void)
 }
 #endif
 
+/* IAMROOT-12CD (2016-08-27):
+ * --------------------------
+ * arm_memblock_steal_permitted = false (arm_memblock_init() 함수에서 설정)
+ */
 static bool arm_memblock_steal_permitted = true;
 
 phys_addr_t __init arm_memblock_steal(phys_addr_t size, phys_addr_t align)
@@ -232,10 +240,23 @@ void __init arm_memblock_init(const struct machine_desc *mdesc)
 #ifdef CONFIG_XIP_KERNEL
 	memblock_reserve(__pa(_sdata), _end - _sdata);
 #else
+	/* IAMROOT-12CD (2016-08-16):
+	 * --------------------------
+	 * memblock_reserve(0x8240, 9737564)
+	 */
 	memblock_reserve(__pa(_stext), _end - _stext);
 #endif
 #ifdef CONFIG_BLK_DEV_INITRD
+	/* IAMROOT-12CD (2016-08-16):
+	 * --------------------------
+	 * initrd_start = 0
+	 * phys_initrd_size = 0
+	 */
 	/* FDT scan will populate initrd_start */
+	/* IAMROOT-12CD (2016-08-20):
+	 * --------------------------
+	 * initrd_start: 0, phys_initrd_size:0
+	 */
 	if (initrd_start && !phys_initrd_size) {
 		phys_initrd_start = __virt_to_phys(initrd_start);
 		phys_initrd_size = initrd_end - initrd_start;
@@ -266,6 +287,11 @@ void __init arm_memblock_init(const struct machine_desc *mdesc)
 
 	/* reserve any platform specific memblock areas */
 	if (mdesc->reserve)
+		/* IAMROOT-12CD (2016-08-20):
+		 * --------------------------
+		 * arch/arm/mach-bcm2709/bcm2709.c
+		 *  board_reserve() 호출
+		 */
 		mdesc->reserve();
 
 	early_init_fdt_scan_reserved_mem();

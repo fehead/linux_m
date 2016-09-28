@@ -53,6 +53,11 @@ EXPORT_SYMBOL(empty_zero_page);
  */
 pmd_t *top_pmd;
 
+/* IAMROOT-12CD (2016-08-23):
+ * --------------------------
+ * _PAGE_USER_TABLE	(PMD_TYPE_TABLE | PMD_BIT4 | PMD_DOMAIN(DOMAIN_USER))
+ * _PAGE_USER_TABLE = 0x1 | 0x10 | 0x20 = 0x31
+ */
 pmdval_t user_pmd_table = _PAGE_USER_TABLE;
 
 #define CPOLICY_UNCACHED	0
@@ -167,6 +172,11 @@ void __init init_default_cache_policy(unsigned long pmd)
  * the cache or the cache and writebuffer to be turned off.  (Note: the
  * write buffer should not be on and the cache off).
  */
+/* IAMROOT-12CD (2016-09-10):
+ * --------------------------
+ * 다음은 해제 될 캐시 또는 캐시와 writebuffer을 허용하여 캐시 일관성 문제를
+ * 식별하는 데 유용합니다(쓰기 버퍼는 켜지않거나 cache off를 하지 않는것이 좋다)
+ */
 static int __init early_cachepolicy(char *p)
 {
 	int i, selected = -1;
@@ -252,51 +262,176 @@ __setup("noalign", noalign_setup);
 
 #endif /* ifdef CONFIG_CPU_CP15 / else */
 
+/* IAMROOT-12CD (2016-09-03):
+ * --------------------------
+ * IO 디바이스 메모리 매핑 영역은 실행불가, 쓰기 가능(DIRTY - DEVICE에서
+ *	writable 로사용), 항상 메모리상주(L_PTE_PRESENT) 되어 있어야함. 
+ * TODO: L_PTE_YOUNG 
+ */
 #define PROT_PTE_DEVICE		L_PTE_PRESENT|L_PTE_YOUNG|L_PTE_DIRTY|L_PTE_XN
 #define PROT_PTE_S2_DEVICE	PROT_PTE_DEVICE
 #define PROT_SECT_DEVICE	PMD_TYPE_SECT|PMD_SECT_AP_WRITE
 
+/* IAMROOT-12CD (2016-08-27):
+ * --------------------------
+ * mem_types[MT_DEVICE].prot_sect |= PMD_SECT_XN;
+ * mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_XN;
+ * mem_types[MT_DEVICE_CACHED].prot_sect |= PMD_SECT_XN;
+ * mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_XN;
+ * mem_types[MT_MEMORY_RW].prot_sect |= PMD_SECT_XN;
+ * 
+ *  mem_types[MT_DEVICE].prot_sect |= PMD_SECT_TEX(1);
+ *  mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(1);
+ *  mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_BUFFERABLE;
+ *
+ * Privileged 모드에서 읽기만 허용, User 모드에서는 접근 불가.
+ *	ARM Architecture Reference Manual  B4-9 참고.
+ * mem_types[MT_ROM].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
+ * mem_types[MT_MINICLEAN].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
+ * mem_types[MT_CACHECLEAN].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
+ *
+ * 공유 설정
+ * mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_S;
+ * mem_types[MT_DEVICE_WC].prot_pte |= L_PTE_SHARED;
+ * mem_types[MT_DEVICE_CACHED].prot_sect |= PMD_SECT_S;
+ * mem_types[MT_DEVICE_CACHED].prot_pte |= L_PTE_SHARED;
+ * mem_types[MT_MEMORY_RWX].prot_sect |= PMD_SECT_S;
+ * mem_types[MT_MEMORY_RWX].prot_pte |= L_PTE_SHARED;
+ * mem_types[MT_MEMORY_RW].prot_sect |= PMD_SECT_S;
+ * mem_types[MT_MEMORY_RW].prot_pte |= L_PTE_SHARED;
+ * mem_types[MT_MEMORY_DMA_READY].prot_pte |= L_PTE_SHARED;
+ * mem_types[MT_MEMORY_RWX_NONCACHED].prot_sect |= PMD_SECT_S;
+ * mem_types[MT_MEMORY_RWX_NONCACHED].prot_pte |= L_PTE_SHARED;
+ *
+ * Non-cacheable Normal is XCB = 001
+ * mem_types[MT_MEMORY_RWX_NONCACHED].prot_sect |= PMD_SECT_BUFFERED;
+ *
+ * mem_types[MT_LOW_VECTORS].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+ * mem_types[MT_HIGH_VECTORS].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+ *
+ * mem_types[MT_MEMORY_RWX].prot_sect |= PMD_SECT_WBWA
+ * mem_types[MT_MEMORY_RWX].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+ * mem_types[MT_MEMORY_RW].prot_sect |= PMD_SECT_WBWA
+ * mem_types[MT_MEMORY_RW].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+ * mem_types[MT_MEMORY_DMA_READY].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+ * mem_types[MT_ROM].prot_sect |= PMD_SECT_WBWA
+ *
+ * mem_types[MT_CACHECLEAN].prot_sect |= PMD_SECT_WB;
+ */
 static struct mem_type mem_types[] = {
 	[MT_DEVICE] = {		  /* Strongly ordered / ARMv6 shared device */
 		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED |
 				  L_PTE_SHARED,
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_pte_s2 = L_PTE_SHARED = 0x400
+		 */
 		.prot_pte_s2	= s2_policy(PROT_PTE_S2_DEVICE) |
 				  s2_policy(L_PTE_S2_MT_DEV_SHARED) |
 				  L_PTE_SHARED,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_l1	= PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-08-27):
+		 * --------------------------
+		 * .prot_sect |= PMD_SECT_XN 
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_sect	= PROT_SECT_DEVICE | PMD_SECT_S,
 		.domain		= DOMAIN_IO,
 	},
 	[MT_DEVICE_NONSHARED] = { /* ARMv6 non-shared device */
 		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_NONSHARED,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_l1	= PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect |= (PMD_SECT_XN | PMD_SECT_TEX(1))
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_sect	= PROT_SECT_DEVICE,
 		.domain		= DOMAIN_IO,
 	},
 	[MT_DEVICE_CACHED] = {	  /* ioremap_cached */
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_CACHED |
+		 *		L_PTE_SHARED(0x400) = 0x66f
+		 */
 		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_CACHED,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_l1	= PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect |= (PMD_SECT_XN | PMD_SECT_S(0x10000)) = 0x1041e
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_sect	= PROT_SECT_DEVICE | PMD_SECT_WB,
 		.domain		= DOMAIN_IO,
 	},
 	[MT_DEVICE_WC] = {	/* ioremap_wc */
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_WC |
+		 *		L_PTE_SHARED(0x400) = 0x667
+		 * 
+		 */
 		.prot_pte	= PROT_PTE_DEVICE | L_PTE_MT_DEV_WC,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_l1	= PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect = PROT_SECT_DEVICE | PMD_SECT_XN |
+		 *	PMD_SECT_BUFFERABLE | PMD_SECT_S = 0x10416
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_sect	= PROT_SECT_DEVICE,
 		.domain		= DOMAIN_IO,
 	},
 	[MT_UNCACHED] = {
 		.prot_pte	= PROT_PTE_DEVICE,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_l1	= PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_IO)
+		 */
 		.prot_sect	= PMD_TYPE_SECT | PMD_SECT_XN,
 		.domain		= DOMAIN_IO,
 	},
 	[MT_CACHECLEAN] = {
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect = PMD_TYPE_SECT | PMD_SECT_XN | PMD_SECT_APX|
+		 *	PMD_SECT_AP_WRITE = 0x2 | 0x10 | 0x8000 | 0x400 = 0x8412
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_XN,
 		.domain    = DOMAIN_KERNEL,
 	},
 #ifndef CONFIG_ARM_LPAE
 	[MT_MINICLEAN] = {
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect = PMD_TYPE_SECT | PMD_TYPE_SECT | PMD_SECT_XN |
+		 *	PMD_SECT_MINICACHE | PMD_SECT_APX|PMD_SECT_AP_WRITE
+		 *	= 0x02 | 0x10 | 0x1008 | 0x8000 | 0x400 = 0x941a
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_XN | PMD_SECT_MINICACHE,
 		.domain    = DOMAIN_KERNEL,
 	},
@@ -304,62 +439,145 @@ static struct mem_type mem_types[] = {
 	[MT_LOW_VECTORS] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
 				L_PTE_RDONLY,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_USER)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_USER,
 	},
 	[MT_HIGH_VECTORS] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
 				L_PTE_USER | L_PTE_RDONLY,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_USER)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_USER,
 	},
 	[MT_MEMORY_RWX] = {
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
+		 *		L_PTE_SHARED
+		 */
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_RW] = {
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
+		 *		L_PTE_XN | L_PTE_SHARED
+		 */
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
 			     L_PTE_XN,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect |= (PMD_SECT_XN | PMD_SECT_S)
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_ROM] = {
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect = PMD_TYPE_SECT | PMD_SECT_APX|PMD_SECT_AP_WRITE
+		 *	= 0x02 | 0x8000 | 0x400 = 0x8402
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT,
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_RWX_NONCACHED] = {
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_pte |= L_PTE_SHARED
+		 */
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
 				L_PTE_MT_BUFFERABLE,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_sect |= (PMD_SECT_S | PMD_SECT_BUFFERED)
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_RW_DTCM] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
 				L_PTE_XN,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_XN,
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_RWX_ITCM] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_RW_SO] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
 				L_PTE_MT_UNCACHED | L_PTE_XN,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S |
 				PMD_SECT_UNCACHED | PMD_SECT_XN,
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_DMA_READY] = {
+		/* IAMROOT-12CD (2016-08-23):
+		 * --------------------------
+		 * .prot_pte |= L_PTE_SHARED
+		 */
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
 				L_PTE_XN,
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 */
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_KERNEL,
 	},
@@ -400,9 +618,17 @@ void __set_fixmap(enum fixed_addresses idx, phys_addr_t phys, pgprot_t prot)
 static void __init build_mem_type_table(void)
 {
 	struct cachepolicy *cp;
+	/* IAMROOT-12CD (2016-08-27):
+	 * --------------------------
+	 * 라즈베리파이2 기본값 : 0x10c5387d
+	 */
 	unsigned int cr = get_cr();
 	pteval_t user_pgprot, kern_pgprot, vecs_pgprot;
 	pteval_t hyp_device_pgprot, s2_pgprot, s2_device_pgprot;
+	/* IAMROOT-12CD (2016-08-27):
+	 * --------------------------
+	 * cpu_arch = CPU_ARCH_ARMv7; // 9
+	 */
 	int cpu_arch = cpu_architecture();
 	int i;
 
@@ -472,6 +698,11 @@ static void __init build_mem_type_table(void)
 			 * Mark device regions on ARMv6+ as execute-never
 			 * to prevent speculative instruction fetches.
 			 */
+			/* IAMROOT-12CD (2016-08-27):
+			 * --------------------------
+			 * 위험한 명령어 fetches를 방지하기 위해 실행 방지로
+			 * ARMv6+에 표시 디바이스 영역 표시한다.
+			 */
 			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_XN;
 			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_XN;
 			mem_types[MT_DEVICE_CACHED].prot_sect |= PMD_SECT_XN;
@@ -487,6 +718,10 @@ static void __init build_mem_type_table(void)
 			 * - nonshared device is SXCB=0100
 			 * - write combine device mem is SXCB=0001
 			 * (Uncached Normal memory)
+			 */
+			/* IAMROOT-12CD (2016-08-27):
+			 * --------------------------
+			 * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0211k/Babifihd.html
 			 */
 			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_TEX(1);
 			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(1);
@@ -524,9 +759,38 @@ static void __init build_mem_type_table(void)
 	/*
 	 * Now deal with the memory-type mappings
 	 */
+	/* IAMROOT-12CD (2016-09-03):
+	 * --------------------------
+	 * cp = {
+	 * 	.policy		= "writealloc",
+	 * 	.cr_mask	= 0,
+	 * 	.pmd		= PMD_SECT_WBWA,
+	 * 	.pte		= L_PTE_MT_WRITEALLOC,
+	 * 	.pte_s2		= 0, 라즈베리파이는 쓰이지 않는다.
+	 * }
+	 */
 	cp = &cache_policies[cachepolicy];
+	/* IAMROOT-12CD (2016-09-03):
+	 * --------------------------
+	 * vecs_pgprot = kern_pgprot = user_pgprot = L_PTE_MT_WRITEALLOC
+	 */
 	vecs_pgprot = kern_pgprot = user_pgprot = cp->pte;
+	/* IAMROOT-12CD (2016-08-23):
+	 * --------------------------
+	 * s2_pgprot = cp->pte_s2 = 0
+	 */
 	s2_pgprot = cp->pte_s2;
+	/* IAMROOT-12CD (2016-08-23):
+	 * --------------------------
+	 * hyp_device_pgprot = PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED |
+	 *	L_PTE_SHARED = 0x653
+	 * s2_device_pgprot = L_PTE_SHARED = 0x400
+	 *
+	 * 하이퍼바이저(hypervisor)는 호스트 컴퓨터에서 다수의 운영 체제(
+	 *	operating system)를 동시에 실행하기 위한 논리적 플랫폼(platform)
+	 *	을 말한다. 가상화 머신 모니터(virtual machine monitor, 줄여서
+	 *	VMM)라고도 부른다.
+	 */
 	hyp_device_pgprot = mem_types[MT_DEVICE].prot_pte;
 	s2_device_pgprot = mem_types[MT_DEVICE].prot_pte_s2;
 
@@ -543,6 +807,13 @@ static void __init build_mem_type_table(void)
 	 * Check is it with support for the PXN bit
 	 * in the Short-descriptor translation table format descriptors.
 	 */
+	/* IAMROOT-12CD (2016-08-23):
+	 * --------------------------
+	 * read_cpuid_ext(CPUID_EXT_MMFR0)  ->  0x10201105
+	 *	mrc        p15, 0, %0, c0, c1, 4
+	 *	[3:0] VMSA support
+	 * 	Indicates support for a Virtual Memory System Architecture(VMSA)
+	 */
 	if (cpu_arch == CPU_ARCH_ARMv7 &&
 		(read_cpuid_ext(CPUID_EXT_MMFR0) & 0xF) == 4) {
 		user_pmd_table |= PMD_PXNTABLE;
@@ -552,11 +823,21 @@ static void __init build_mem_type_table(void)
 	/*
 	 * ARMv6 and above have extended page tables.
 	 */
+	/* IAMROOT-12CD (2016-08-23):
+	 * --------------------------
+	 * cr = 0x10c5387d, CR_XP = 0x800000
+	 * cr & CR_XP = 0x800000
+	 */
 	if (cpu_arch >= CPU_ARCH_ARMv6 && (cr & CR_XP)) {
 #ifndef CONFIG_ARM_LPAE
 		/*
 		 * Mark cache clean areas and XIP ROM read only
 		 * from SVC mode and no access from userspace.
+		 */
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * APX	AP[1:0](RW)	Privileged 권한	user 권한
+		 * 1	0b01		Read only	No access
 		 */
 		mem_types[MT_ROM].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
 		mem_types[MT_MINICLEAN].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
@@ -568,7 +849,22 @@ static void __init build_mem_type_table(void)
 		 * set, then we need to do the same here for the same
 		 * reasons given in early_cachepolicy().
 		 */
+/* IAMROOT-12CD (2016-09-10):
+ * --------------------------
+ * 초기 페이지 테이블이 S 비트 세트를 만든 경우, 우리는 early_cachepolicy()에
+ * 주어진 같은 이유로 여기에 동일한 작업을 수행해야합니다.
+ * initial_pmd_value = PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_AP_READ |
+ *		PMD_SECT_AF | PMD_SECT_WBWA|PMD_SECT_S;
+ *	PMD_SEC_S : shared 가 아닐까?
+ */
 		if (initial_pmd_value & PMD_SECT_S) {
+			/* IAMROOT-12CD (2016-09-10):
+			 * --------------------------
+			 * user_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+			 * kern_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+			 * vecs_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+			 * s2_pgprot = L_PTE_SHARED
+			 */
 			user_pgprot |= L_PTE_SHARED;
 			kern_pgprot |= L_PTE_SHARED;
 			vecs_pgprot |= L_PTE_SHARED;
@@ -625,12 +921,31 @@ static void __init build_mem_type_table(void)
 
 	for (i = 0; i < 16; i++) {
 		pteval_t v = pgprot_val(protection_map[i]);
+		/* IAMROOT-12CD (2016-09-10):
+		 * --------------------------
+		 * user_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+		 */
 		protection_map[i] = __pgprot(v | user_pgprot);
 	}
 
+	/* IAMROOT-12CD (2016-09-10):
+	 * --------------------------
+	 * user_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * kern_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * vecs_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * s2_pgprot = L_PTE_SHARED
+	 */
 	mem_types[MT_LOW_VECTORS].prot_pte |= vecs_pgprot;
 	mem_types[MT_HIGH_VECTORS].prot_pte |= vecs_pgprot;
 
+	/* IAMROOT-12CD (2016-09-10):
+	 * --------------------------
+	 * pgprot_user = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * pgprot_kernel = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY | L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * pgprot_s2 = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_SHARED
+	 * pgprot_s2_device = L_PTE_SHARED
+	 * pgprot_hyp_device  = PROT_PTE_DEVICE | L_PTE_MT_DEV_SHARED | L_PTE_SHARED
+	 */
 	pgprot_user   = __pgprot(L_PTE_PRESENT | L_PTE_YOUNG | user_pgprot);
 	pgprot_kernel = __pgprot(L_PTE_PRESENT | L_PTE_YOUNG |
 				 L_PTE_DIRTY | kern_pgprot);
@@ -640,6 +955,18 @@ static void __init build_mem_type_table(void)
 
 	mem_types[MT_LOW_VECTORS].prot_l1 |= ecc_mask;
 	mem_types[MT_HIGH_VECTORS].prot_l1 |= ecc_mask;
+	/* IAMROOT-12CD (2016-09-10):
+	 * --------------------------
+	 * cp->pmd = PMD_SECT_WBWA,
+	 * kern_pgprot = L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * 
+	 * mem_types[MT_MEMORY_RWX].prot_sect |= PMD_SECT_WBWA
+	 * mem_types[MT_MEMORY_RWX].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * mem_types[MT_MEMORY_RW].prot_sect |= PMD_SECT_WBWA
+	 * mem_types[MT_MEMORY_RW].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * mem_types[MT_MEMORY_DMA_READY].prot_pte |= L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+	 * mem_types[MT_ROM].prot_sect |= PMD_SECT_WBWA
+	 */
 	mem_types[MT_MEMORY_RWX].prot_sect |= ecc_mask | cp->pmd;
 	mem_types[MT_MEMORY_RWX].prot_pte |= kern_pgprot;
 	mem_types[MT_MEMORY_RW].prot_sect |= ecc_mask | cp->pmd;
@@ -657,6 +984,11 @@ static void __init build_mem_type_table(void)
 		mem_types[MT_CACHECLEAN].prot_sect |= PMD_SECT_WB;
 		break;
 	}
+	/* IAMROOT-12CD (2016-09-10):
+	 * --------------------------
+	 * ecc_mask = 0
+	 * cp->policy = "writealloc",
+	 */
 	pr_info("Memory policy: %sData cache %s\n",
 		ecc_mask ? "ECC enabled, " : "", cp->policy);
 
@@ -855,6 +1187,14 @@ static void __init create_36bit_mapping(struct map_desc *md,
  * offsets, and we take full advantage of sections and
  * supersections.
  */
+/* IAMROOT-12CD (2016-09-24):
+ * --------------------------
+ * kernel 실행 영역.
+ * md.pfn = 0
+ * md.virtual = 0x80000000
+ * md.length = 0x900000
+ * md.type = MT_MEMORY_RWX
+ */
 static void __init create_mapping(struct map_desc *md)
 {
 	unsigned long addr, length, end;
@@ -862,12 +1202,20 @@ static void __init create_mapping(struct map_desc *md)
 	const struct mem_type *type;
 	pgd_t *pgd;
 
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 * 사용자 영역에 맵핑을 만드는 경우 에러.
+	 */
 	if (md->virtual != vectors_base() && md->virtual < TASK_SIZE) {
 		pr_warn("BUG: not creating mapping for 0x%08llx at 0x%08lx in user region\n",
 			(long long)__pfn_to_phys((u64)md->pfn), md->virtual);
 		return;
 	}
 
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 * MT_DEVICE이거나 MT_ROM이면서 vmalloc 공간을 벗어날 영역이면 에러.
+	 */
 	if ((md->type == MT_DEVICE || md->type == MT_ROM) &&
 	    md->virtual >= PAGE_OFFSET &&
 	    (md->virtual < VMALLOC_START || md->virtual >= VMALLOC_END)) {
@@ -875,6 +1223,12 @@ static void __init create_mapping(struct map_desc *md)
 			(long long)__pfn_to_phys((u64)md->pfn), md->virtual);
 	}
 
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 * md.type = MT_MEMORY_RWX
+	 * 여기까지 12CD 끝입니다.
+	 * AB팀으로 합칩니다.
+	 */
 	type = &mem_types[md->type];
 
 #ifndef CONFIG_ARM_LPAE
@@ -887,6 +1241,14 @@ static void __init create_mapping(struct map_desc *md)
 	}
 #endif
 
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 * md->virtual = 0x80000000
+	 * addr = 0x80000000
+	 * phys = 0
+	 * length = 
+	 * md.length = 0x900000 + (0x80000000 & ~PAGE_MASK) = 0x900000
+	 */
 	addr = md->virtual & PAGE_MASK;
 	phys = __pfn_to_phys(md->pfn);
 	length = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));
@@ -1049,6 +1411,12 @@ void __init debug_ll_io_init(void)
 }
 #endif
 
+/* IAMROOT-12CD (2016-07-23):
+ * --------------------------
+ * vmalloc_min = 0xEF800000
+ *  3.83G 정도 되고 이 영역은 커널 하이메모리 시작 주소 바로 아래 부분이다.
+ *	하이메모리 영역은 3.893G~4G영역이다. 그래서 하이메모리 바로 아래에 위치한다.
+ */
 static void * __initdata vmalloc_min =
 	(void *)(VMALLOC_END - (240 << 20) - VMALLOC_OFFSET);
 
@@ -1078,15 +1446,36 @@ static int __init early_vmalloc(char *arg)
 }
 early_param("vmalloc", early_vmalloc);
 
+/* IAMROOT-12CD (2016-08-06):
+ * arm_lowmem_limit: 0x3c000000(960mb)
+ */
 phys_addr_t arm_lowmem_limit __initdata = 0;
 
+/* IAMROOT-12CD (2016-07-23):
+ * --------------------------
+ * meminfo 에 근본적인 문제가 있는지 체크.
+ */
 void __init sanity_check_meminfo(void)
 {
 	phys_addr_t memblock_limit = 0;
 	int highmem = 0;
+
+	/* IAMROOT-12CD (2016-07-23):
+	 * --------------------------
+	 * vmalloc_limit = 0x6F800000	3.835G
+	 */
 	phys_addr_t vmalloc_limit = __pa(vmalloc_min - 1) + 1;
 	struct memblock_region *reg;
 
+	/* IAMROOT-12CD (2016-07-23):
+	 * --------------------------
+	 * for (reg = memblock.memory.regions;
+	 *      reg < (memblock.memory.regions + memblock.memory.cnt);
+	 *      reg++)
+	 * reg.base: 0x0
+	 * reg.size: 0x3c000000 (960mb)
+	 * reg.flags: 0
+	 */
 	for_each_memblock(memory, reg) {
 		phys_addr_t block_start = reg->base;
 		phys_addr_t block_end = reg->base + reg->size;
@@ -1095,6 +1484,9 @@ void __init sanity_check_meminfo(void)
 		if (reg->base >= vmalloc_limit)
 			highmem = 1;
 		else
+			/* IAMROOT-12CD (2016-08-06):
+			 * size_limit = 0x6F800000(3.835G) - 0;
+			 */
 			size_limit = vmalloc_limit - reg->base;
 
 
@@ -1107,6 +1499,9 @@ void __init sanity_check_meminfo(void)
 				continue;
 			}
 
+			/* IAMROOT-12CD (2016-08-06):
+			 * reg->size: 960mb, size_limit: 3.835G
+			 */
 			if (reg->size > size_limit) {
 				phys_addr_t overlap_size = reg->size - size_limit;
 
@@ -1116,12 +1511,19 @@ void __init sanity_check_meminfo(void)
 				block_end = vmalloc_limit;
 			}
 		}
+		/* IAMROOT-12CD (2016-08-06):
+		 * block_end: 960mb, arm_lowmem_limit: 0
+		 */
 
 		if (!highmem) {
 			if (block_end > arm_lowmem_limit) {
 				if (reg->size > size_limit)
 					arm_lowmem_limit = vmalloc_limit;
 				else
+					/* IAMROOT-12CD (2016-08-14):
+					 * --------------------------
+					 * arm_lowmem_limit: 0x3c000000(960mb)
+					 */
 					arm_lowmem_limit = block_end;
 			}
 
@@ -1148,12 +1550,19 @@ void __init sanity_check_meminfo(void)
 		}
 	}
 
+	/* IAMROOT-12CD (2016-08-06):
+	 * high_memory = (0x3c000000 - 1) + 0x80000000 + 1
+	 *             = 0xBC000000
+	 */
 	high_memory = __va(arm_lowmem_limit - 1) + 1;
 
 	/*
 	 * Round the memblock limit down to a pmd size.  This
 	 * helps to ensure that we will allocate memory from the
 	 * last full pmd, which should be mapped.
+	 */
+	/* IAMROOT-12CD (2016-08-06):
+	 * memblock_limit = 960mb
 	 */
 	if (memblock_limit)
 		memblock_limit = round_down(memblock_limit, PMD_SIZE);
@@ -1171,6 +1580,20 @@ static inline void prepare_page_table(void)
 	/*
 	 * Clear out all the mappings below the kernel image.
 	 */
+	/* IAMROOT-12CD (2016-09-10):
+	 * --------------------------
+	 * 커널이미지 아래 모든 매핑을 청소(data clean)합니다.
+	 * MODULES_VADDR = 2G-16M = 0x7f000000
+	 * PMD_SIZE = (1 << 21) = 2M
+	 *
+	 *	addr		pmd_off_k
+	 *	0		0x80004000
+	 *	0x200000	0x80004008
+	 *	0x400000	0x80004010
+	 *	0x600000	0x80004018
+	 *	...
+	 *	0x7ee00000	0x80005fb8
+	 */
 	for (addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
 
@@ -1178,11 +1601,30 @@ static inline void prepare_page_table(void)
 	/* The XIP kernel is mapped in the module area -- skip over it */
 	addr = ((unsigned long)_etext + PMD_SIZE - 1) & PMD_MASK;
 #endif
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 *	addr		pmd_off_k
+	 *	0x7f000000	0x80005fc0
+	 *	0x7f200000	0x80005fc8
+	 *	0x7f400000	0x80005fd0
+	 *	...
+	 *	0x7fe00000	0x80005ff8
+	 */
 	for ( ; addr < PAGE_OFFSET; addr += PMD_SIZE)
 		pmd_clear(pmd_off_k(addr));
 
 	/*
 	 * Find the end of the first block of lowmem.
+	 */
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 * .memory
+	 * {cnt = 0x1, max = 0x80, total_size = 0x3c000000, regions = {
+	 *   [0] = {base = 0x0, size = 0x3c000000, flags = 0x0}, 0 ~ 960M 영역.
+	 *   [1] = {base = 0x0, size = 0x0, flags = 0x0},
+	 *   ...
+	 *
+	 * end = 960M
 	 */
 	end = memblock.memory.regions[0].base + memblock.memory.regions[0].size;
 	if (end >= arm_lowmem_limit)
@@ -1191,6 +1633,14 @@ static inline void prepare_page_table(void)
 	/*
 	 * Clear out all the kernel space mappings, except for the first
 	 * memory bank, up to the vmalloc region.
+	 */
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 * end = 960M, addr = 0x80000000 + 960M = 2.96G
+	 * VMALLOC_START = 0xbc800000(968M의 가상주소) = 3.968G
+	 * PMD_SIZE = 2M
+	 *
+	 * 2.96G ~ 3.968G 커널 영역의 Cache clear
 	 */
 	for (addr = __phys_to_virt(end);
 	     addr < VMALLOC_START; addr += PMD_SIZE)
@@ -1213,6 +1663,11 @@ void __init arm_mm_memblock_reserve(void)
 	/*
 	 * Reserve the page tables.  These are already in use,
 	 * and can only be in node 0.
+	 */
+	/* IAMROOT-12CD (2016-08-20):
+	 * --------------------------
+	 * swapper_pg_dir = 0x80004000 ,
+	 * memblock_reserve(0x4000, 0x4000);
 	 */
 	memblock_reserve(__pa(swapper_pg_dir), SWAPPER_PG_DIR_SIZE);
 
@@ -1343,11 +1798,25 @@ static void __init kmap_init(void)
 static void __init map_lowmem(void)
 {
 	struct memblock_region *reg;
+	/* IAMROOT-12CD (2016-09-24):
+	 * --------------------------
+	 * _stext = 0x80008240, kernel_x_start = 0x0
+	 * __init_end = 0x8080c000, kernel_x_end = 0x900000
+	 */
 	phys_addr_t kernel_x_start = round_down(__pa(_stext), SECTION_SIZE);
 	phys_addr_t kernel_x_end = round_up(__pa(__init_end), SECTION_SIZE);
 
 	/* Map all the lowmem memory banks. */
 	for_each_memblock(memory, reg) {
+		/* IAMROOT-12CD (2016-08-20):
+		 * --------------------------
+		 * .memory
+		 * {cnt = 0x1, max = 0x80, total_size = 0x3c000000, regions = {
+		 *   [0] = {base = 0x0, size = 0x3c000000, flags = 0x0}, 0 ~ 960M 영역.
+		 *   [1] = {base = 0x0, size = 0x0, flags = 0x0},
+		 *   ...
+		 * }}
+		 */
 		phys_addr_t start = reg->base;
 		phys_addr_t end = start + reg->size;
 		struct map_desc map;
@@ -1373,6 +1842,14 @@ static void __init map_lowmem(void)
 			create_mapping(&map);
 		} else {
 			/* This better cover the entire kernel */
+			/* IAMROOT-12CD (2016-09-24):
+			 * --------------------------
+			 * 커널 전체를 커버 해야한다.
+			 *
+			 * start = 0, end = 960M
+			 * _stext = 0x80008240, kernel_x_start = 0x0
+			 * __init_end = 0x8080c000, kernel_x_end = 0x900000
+			 */
 			if (start < kernel_x_start) {
 				map.pfn = __phys_to_pfn(start);
 				map.virtual = __phys_to_virt(start);
@@ -1382,6 +1859,13 @@ static void __init map_lowmem(void)
 				create_mapping(&map);
 			}
 
+			/* IAMROOT-12CD (2016-09-24):
+			 * --------------------------
+			 * map.pfn = 0
+			 * map.virtual = 0x80000000
+			 * map.length = 0x900000
+			 * map.type = MT_MEMORY_RWX
+			 */
 			map.pfn = __phys_to_pfn(kernel_x_start);
 			map.virtual = __phys_to_virt(kernel_x_start);
 			map.length = kernel_x_end - kernel_x_start;
@@ -1513,6 +1997,10 @@ void __init early_paging_init(const struct machine_desc *mdesc,
 
 #else
 
+/* IAMROOT-12CD (2016-07-23):
+ * --------------------------
+ * pi2에서는 mdesc->init_meminfo 값이 NULL 이다.
+ */
 void __init early_paging_init(const struct machine_desc *mdesc,
 			      struct proc_info_list *procinfo)
 {

@@ -2,6 +2,10 @@
 " vim -u vimrc 이렇게 명령어를 실행하라.
 " ~/.vimrc 에 alias를 내용을 추가후 alias를 써도 좋다.
 " alias vim -u ~/vimrc/path/vimrc
+"
+"============ kernel source 경로 ===========
+let kernel_src_home=getcwd()
+
 set nu
 set ai
 set si
@@ -26,7 +30,7 @@ set ls=2	"last statusbar
 syntax on
 set cc=80	" 80라인 컬럼 표시
 
-set dy+=lastline
+" set dy+=lastline
 " set formatoptions+=r    " 주석 자동 처리
 " setlocal comments-=://  " // 자동 주석 제거
 colorscheme ron
@@ -75,10 +79,11 @@ nmap ,0 :b!0<CR>	  " Switch to File Buffer #0
 
 
 "============ ctags, scope 경로 ===========
-set tags+=getpwd() "/tags"
+exe "set tags+=" . kernel_src_home . "/tags"
+exe "cscope add " . kernel_src_home . "/cscope.out"
+
 set csprg=/usr/bin/cscope
 set nocsverb
-cs add getpwd() "/cscope.out"
 set csverb
 set csto=0
 set csre
@@ -185,7 +190,7 @@ nmap <F4> "+p
 nmap <F5> :call IC_AnalyzingCode() <cr>
 nmap <F6> :call IC_DailySummary() <cr>
 nmap <F7> :call IC_FileSummary() <cr>
-nmap <F8> A<tab>/* IAMROOT-12D: 
+nmap <F8> A<tab>/* IAMROOT-12CD: 
 
 " 커널분석용 설정
 nmap <F9> :set ts=8 sw=8 sts=8 <cr>

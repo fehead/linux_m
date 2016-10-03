@@ -13,3 +13,5 @@ make cscope ARCH=arm &
 CS_PID=$!
 
 wait ${TAGS_PID} ${CS_PID}
+
+echo done.

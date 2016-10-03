@@ -33,6 +33,10 @@
  * CPUs based on ARMv6+ or the Intel XSC3 core.
  */
 #ifndef CONFIG_IO_36
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * 라즈베리파이 2용.
+ */
 #define DOMAIN_KERNEL	0
 #define DOMAIN_TABLE	0
 #define DOMAIN_USER	1

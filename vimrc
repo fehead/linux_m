@@ -177,6 +177,11 @@ vmap <c-x> <esc>:call CmtOff() <cr>
 nmap <c-c> v:call CmtOn() <cr>
 nmap <c-x> v:call CmtOff() <cr>
 
+" visual 클립보드 복사
+vmap <F3> "+y
+" 클립보드 내용 붙여 넣기
+nmap <F4> "+p
+
 nmap <F5> :call IC_AnalyzingCode() <cr>
 nmap <F6> :call IC_DailySummary() <cr>
 nmap <F7> :call IC_FileSummary() <cr>

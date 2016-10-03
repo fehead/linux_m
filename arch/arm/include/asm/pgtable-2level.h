@@ -192,11 +192,23 @@
 
 /* IAMROOT-12CD (2016-09-24):
  * --------------------------
- * PMD_SIZE = 2M
+ * PMD_SIZE = 2M = 0x0020 0000
  */
 #define PMD_SIZE		(1UL << PMD_SHIFT)
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * PMD+MASK = 0xffe00000
+ */
 #define PMD_MASK		(~(PMD_SIZE-1))
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * PGDIR_SIZE = 0x0020 0000
+ */
 #define PGDIR_SIZE		(1UL << PGDIR_SHIFT)
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * PGDIR_MASK = 0xffe00000
+ */
 #define PGDIR_MASK		(~(PGDIR_SIZE-1))
 
 /*

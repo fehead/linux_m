@@ -197,13 +197,19 @@ extern pgd_t swapper_pg_dir[PTRS_PER_PGD];
  */
 #define pgd_index(addr)		((addr) >> PGDIR_SHIFT)
 
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * typedef pmdval_t pgd_t[2];
+ * sizeof((mm)->pgd) = 8
+ */
 #define pgd_offset(mm, addr)	((mm)->pgd + pgd_index(addr))
 
 /* to find an entry in a kernel page-table-directory */
 /* IAMROOT-12CD (2016-09-25):
  * --------------------------
- * addr = 0x80000000
  * init_mm.pgd = 0x80004000
+ * addr		ret
+ * 0x80000000	0x80006000
  */
 #define pgd_offset_k(addr)	pgd_offset(&init_mm, addr)
 

@@ -457,21 +457,25 @@ static struct mem_type mem_types[] = {
 		.domain    = DOMAIN_USER,
 	},
 	[MT_MEMORY_RWX] = {
-		/* IAMROOT-12CD (2016-08-23):
+		/* IAMROOT-12CD (2016-10-03):	debug 완료
 		 * --------------------------
-		 * .prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
-		 *		L_PTE_SHARED
+		 * .prot_pte |= L_PTE_SHARED | L_PTE_MT_WRITEALLOC | L_PTE_SHARED
+		 * = 0x45f
+		 *	1098 7654 3210
+		 *	0100 0101 1111
 		 */
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
-		/* IAMROOT-12CD (2016-09-10):
+		/* IAMROOT-12CD (2016-10-03):	debug 완료.
 		 * --------------------------
-		 * .prot_l1 |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 * = 0x1
 		 */
 		.prot_l1   = PMD_TYPE_TABLE,
-		/* IAMROOT-12CD (2016-08-23):
+		/* IAMROOT-12CD (2016-08-23):	debug 완료.
 		 * --------------------------
-		 * .prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S
-		 * .prot_sect |= PMD_DOMAIN(DOMAIN_KERNEL)
+		 * .prot_sect |= PMD_SECT_S | (PMD_SECT_TEX(1) | PMD_SECT_CACHEABLE | PMD_SECT_BUFFERABLE)
+		 * = 0x1140e
+		 *	9876	5432	1098	7654	3210
+		 *	0001	0001	0100	0000	1110
 		 */
 		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
 		.domain    = DOMAIN_KERNEL,
@@ -1049,6 +1053,19 @@ static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 }
 
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * page table에 매핑할 하드웨어 주소와 메모리 속성을 설정한다.
+ *
+ * type = &mem_types[MT_MEMORY_RWX]
+ *  pmd		addr		end		phys		*pmd
+ *  0x80006000	0x80000000	0x80200000	0		0 | prot_sect
+ *  0x80006004	0x80100000			0x100000	0x100000 | ..
+ *
+ *  0x80006008	0x80200000	0x80400000	0x200000	0x200000 | ..
+ *  0x8000600c	0x80300000			0x300000	0x300000 | ..
+ *
+ */
 static void __init __map_init_section(pmd_t *pmd, unsigned long addr,
 			unsigned long end, phys_addr_t phys,
 			const struct mem_type *type)
@@ -1065,6 +1082,10 @@ static void __init __map_init_section(pmd_t *pmd, unsigned long addr,
 	 * offset for odd 1MB sections.
 	 * (See arch/arm/include/asm/pgtable-2level.h)
 	 */
+	/* IAMROOT-12CD (2016-10-03):
+	 * --------------------------
+	 * SECTION_SIZE = (1UL << SECTION_SHIFT) = 0x100000
+	 */
 	if (addr & SECTION_SIZE)
 		pmd++;
 #endif
@@ -1076,10 +1097,24 @@ static void __init __map_init_section(pmd_t *pmd, unsigned long addr,
 	flush_pmd_entry(p);
 }
 
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * pgd 0x80006000, addr=0x80000000, end = 0x80200000, phys = 0
+ * type = &mem_types[MT_MEMORY_RWX]
+ *  pud		addr		end		phys
+ *  0x80006000	0x80000000	0x80200000	0
+ *  0x80006008	0x80200000	0x80400000	0x200000
+ *  0x8000600c	0x80600000	0x80600000	0x400000
+ *  ...
+ */
 static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 				      unsigned long end, phys_addr_t phys,
 				      const struct mem_type *type)
 {
+	/* IAMROOT-12CD (2016-10-03):
+	 * --------------------------
+	 * pmd = pud
+	 */
 	pmd_t *pmd = pmd_offset(pud, addr);
 	unsigned long next;
 
@@ -1087,6 +1122,10 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 		/*
 		 * With LPAE, we must loop over to map
 		 * all the pmds for the given range.
+		 */
+		/* IAMROOT-12CD (2016-10-03):
+		 * --------------------------
+		 * next = end
 		 */
 		next = pmd_addr_end(addr, end);
 
@@ -1107,14 +1146,35 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 	} while (pmd++, addr = next, addr != end);
 }
 
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * pgd 0x80006000, addr=0x80000000, end = 0x80200000, phys = 0
+ * type = &mem_types[MT_MEMORY_RWX]
+ * 
+ * next		pgd		addr		phys
+ * 0x80200000	0x80006000	0x80000000	0
+ * 0x80400000	0x80006008	0x80200000	0x200000
+ * 0x80600000	0x8000600c	0x80400000	0x400000
+ * 0x80800000	0x80006010	0x80600000	0x600000
+ * 0x80c00000	0x80006018	0x80800000	0x800000
+ * 0x81000000	0x8000601c	0x80900000	0x1000000
+ */
 static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
 				  unsigned long end, phys_addr_t phys,
 				  const struct mem_type *type)
 {
+	/* IAMROOT-12CD (2016-10-03):
+	 * --------------------------
+	 * pud = 0x80006000
+	 */
 	pud_t *pud = pud_offset(pgd, addr);
 	unsigned long next;
 
 	do {
+		/* IAMROOT-12CD (2016-10-03):
+		 * --------------------------
+		 * next = end
+		 */
 		next = pud_addr_end(addr, end);
 		alloc_init_pmd(pud, addr, next, phys, type);
 		phys += next - addr;
@@ -1235,6 +1295,10 @@ static void __init create_mapping(struct map_desc *md)
 	/*
 	 * Catch 36-bit addresses
 	 */
+	/* IAMROOT-12CD (2016-10-03):
+	 * --------------------------
+	 * 32비트 주소를 넘길때.
+	 */
 	if (md->pfn >= 0x100000) {
 		create_36bit_mapping(md, type);
 		return;
@@ -1259,11 +1323,31 @@ static void __init create_mapping(struct map_desc *md)
 		return;
 	}
 
+	/* IAMROOT-12CD (2016-10-03):
+	 * --------------------------
+	 * pgd = 0x80006000
+	 * end = 0x80900000
+	 */
 	pgd = pgd_offset_k(addr);
 	end = addr + length;
+	/* IAMROOT-12CD (2016-10-03):
+	 * --------------------------
+	 * next		pgd		addr		phys
+	 * 0x80200000	0x80006000	0x80000000	0
+	 * 0x80400000	0x80006008	0x80200000	0x200000
+	 * 0x80600000	0x8000600c	0x80400000	0x400000
+	 * 0x80800000	0x80006010	0x80600000	0x600000
+	 * 0x80c00000	0x80006018	0x80800000	0x800000
+	 * 0x81000000	0x8000601c	0x80900000	0x1000000
+	 */
 	do {
 		unsigned long next = pgd_addr_end(addr, end);
 
+		/* IAMROOT-12CD (2016-10-03):
+		 * --------------------------
+		 * pgd 0x80006000, addr=0x80000000, next = 0x80200000, phys = 0
+		 * type = &mem_types[MT_MEMORY_RWX]
+		 */
 		alloc_init_pud(pgd, addr, next, phys, type);
 
 		phys += next - addr;
@@ -1874,6 +1958,11 @@ static void __init map_lowmem(void)
 			create_mapping(&map);
 
 			if (kernel_x_end < end) {
+				/* IAMROOT-12CD (2016-10-03):
+				 * --------------------------
+				 * map = {virtual = 0x80900000, pfn = 0x900,
+				 *	length = 0x3b700000, type = 0xa}
+				 */
 				map.pfn = __phys_to_pfn(kernel_x_end);
 				map.virtual = __phys_to_virt(kernel_x_end);
 				map.length = end - kernel_x_end;

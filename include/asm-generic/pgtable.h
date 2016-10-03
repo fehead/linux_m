@@ -285,7 +285,14 @@ static inline pgprot_t pgprot_modify(pgprot_t oldprot, pgprot_t newprot)
  * or the end address of the range if that comes earlier.  Although no
  * vma end wraps to 0, rounded up __boundary may wrap to 0 throughout.
  */
-
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * addr		end		__boundary	ret
+ * 0x8000000	0x80900000	0x80200000	0x80200000
+ * 0x8020000	0x80900000	0x80300000	0x80300000
+ * ...
+ * 0x8090000	0x80900000	0x81000000	0x80900000
+ */
 #define pgd_addr_end(addr, end)						\
 ({	unsigned long __boundary = ((addr) + PGDIR_SIZE) & PGDIR_MASK;	\
 	(__boundary - 1 < (end) - 1)? __boundary: (end);		\

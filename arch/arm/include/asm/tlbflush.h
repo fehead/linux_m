@@ -43,6 +43,10 @@
 #define TLB_BARRIER	(1 << 28)
 #define TLB_L2CLEAN_FR	(1 << 29)		/* Feroceon */
 #define TLB_DCLEAN	(1 << 30)
+/* IAMROOT-12CD (2016-10-03):
+ * --------------------------
+ * TLB Write-Back
+ */
 #define TLB_WB		(1 << 31)
 
 /*
@@ -619,6 +623,11 @@ static inline void flush_pmd_entry(void *pmd)
 	tlb_op(TLB_DCLEAN, "c7, c10, 1	@ flush_pmd", pmd);
 	tlb_l2_op(TLB_L2CLEAN_FR, "c15, c9, 1  @ L2 flush_pmd", pmd);
 
+	/* IAMROOT-12CD (2016-10-03):
+	 * --------------------------
+	 * 라즈베리파이는 TBL_WB(Write-Back)가 설정 되어 있음.
+	 * d-cache clean이 완료될때까지 기다린다.
+	 */
 	if (tlb_flag(TLB_WB))
 		dsb(ishst);
 }

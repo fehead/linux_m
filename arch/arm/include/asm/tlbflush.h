@@ -196,6 +196,10 @@
 # ifdef _TLB
 #  define MULTI_TLB 1
 # else
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * 라즈베리파이2
+ */
 #  define _TLB v7wbi
 # endif
 #else
@@ -227,6 +231,12 @@ struct cpu_tlb_fns {
 
 #else
 
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * 라즈베리파이2
+ * __cpu_flush_user_tlb_range	v7wbi_flush_user_tlb_range
+ * __cpu_flush_kern_tlb_range	v7wbi_flush_kern_tlb_range
+ */
 #define __cpu_flush_user_tlb_range	__glue(_TLB,_flush_user_tlb_range)
 #define __cpu_flush_kern_tlb_range	__glue(_TLB,_flush_kern_tlb_range)
 
@@ -668,6 +678,10 @@ static inline void clean_pmd_entry(void *pmd)
 /*
  * Convert calls to our calling convention.
  */
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * 라즈베리파이2에서 사용.
+ */
 #define local_flush_tlb_range(vma,start,end)	__cpu_flush_user_tlb_range(start,end,vma)
 #define local_flush_tlb_kernel_range(s,e)	__cpu_flush_kern_tlb_range(s,e)
 
@@ -738,10 +752,18 @@ extern void flush_bp_all(void);
 #ifdef CONFIG_ARM_ERRATA_798181
 extern void erratum_a15_798181_init(void);
 #else
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * 라즈베리파이2
+ */
 static inline void erratum_a15_798181_init(void) {}
 #endif
 extern bool (*erratum_a15_798181_handler)(void);
 
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * false를 반환
+ */
 static inline bool erratum_a15_798181(void)
 {
 	if (unlikely(IS_ENABLED(CONFIG_ARM_ERRATA_798181) &&

@@ -117,6 +117,9 @@ extern unsigned int processor_id;
  * --------------------------
  * CPUID_EXT_MMFR0 "c1, 4"  ->  0x10201105
  *	mrc        p15, 0, %0, c0, c1, 4
+ *
+ * CPUID_EXT_MMFR3	"c1, 7" -> 02102211
+ *	mrc	p15, 0, %0, c0, c1, 7
  */
 #define read_cpuid_ext(ext_reg)						\
 	({								\

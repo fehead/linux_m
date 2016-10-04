@@ -1358,6 +1358,14 @@ static void __init create_mapping(struct map_desc *md)
 /*
  * Create the architecture specific mappings
  */
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * map.pfn = 0x3b800
+ * map.virtual = 0xbb800000
+ * map.length = 0x800000
+ * map.type = MT_MEMORY_DMA_READY
+ * nr = 1
+ */
 void __init iotable_init(struct map_desc *io_desc, int nr)
 {
 	struct map_desc *md;

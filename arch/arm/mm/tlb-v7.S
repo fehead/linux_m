@@ -78,6 +78,11 @@ ENTRY(v7wbi_flush_kern_tlb_range)
 #ifdef CONFIG_ARM_ERRATA_720789
 	ALT_SMP(mcr	p15, 0, r0, c8, c3, 3)	@ TLB invalidate U MVA all ASID (shareable)
 #else
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * 라즈베리파이2
+ * MVA Inner Shareable에 의해 통합된(unified) TLB 엔트리를 무효화(flush) 합니다.
+ */
 	ALT_SMP(mcr	p15, 0, r0, c8, c3, 1)	@ TLB invalidate U MVA (shareable)
 #endif
 	ALT_UP(mcr	p15, 0, r0, c8, c7, 1)	@ TLB invalidate U MVA
@@ -85,6 +90,10 @@ ENTRY(v7wbi_flush_kern_tlb_range)
 	cmp	r0, r1
 	blo	1b
 	dsb	ish
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * 명령어 파이프 라인을 비움.
+ */
 	isb
 	ret	lr
 ENDPROC(v7wbi_flush_kern_tlb_range)

@@ -192,8 +192,16 @@ void flush_tlb_range(struct vm_area_struct *vma,
 	broadcast_tlb_mm_a15_erratum(vma->vm_mm);
 }
 
+/* IAMROOT-12D (2016-10-04):
+ * --------------------------
+ * tlb cache를 flush한다.
+ */
 void flush_tlb_kernel_range(unsigned long start, unsigned long end)
 {
+	/* IAMROOT-12D (2016-10-04):
+	 * --------------------------
+	 * 라즈베리파이2는 false를 반환함.(broadcast 할필요 없음)
+	 */
 	if (tlb_ops_need_broadcast()) {
 		struct tlb_args ta;
 		ta.ta_start = start;

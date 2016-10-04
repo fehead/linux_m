@@ -53,6 +53,16 @@ static inline int tlb_ops_need_broadcast(void)
 	if (!is_smp())
 		return 0;
 
+	/* IAMROOT-12D (2016-10-04):
+	 * --------------------------
+	 * CPUID_EXT_MMFR3	"c1, 7" -> 02102211
+	 *  [15:12] Maintenance broadcast Indicates whether cache, TLB and branch predictor operations are broadcast:
+	 *  0x2 Cache, TLB and branch predictor operations affect structures according to shareability and defined behavior of instructions.
+	 *
+	 * 캐쉬, TBL, 분기예측 작업이 broadcast 되는지 여부를 나타냄.
+	 * 0x2 Cache, TLB, 분기 예측 작업이 공유성, 정의된 명령어의 행위에 따라 구조에 영향을 미친다.
+	 * 여기서는 2이므로 false 반환
+	 */
 	return ((read_cpuid_ext(CPUID_EXT_MMFR3) >> 12) & 0xf) < 2;
 }
 #endif

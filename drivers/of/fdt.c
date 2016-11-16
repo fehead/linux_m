@@ -1006,14 +1006,15 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 
 	/* IAMROOT-12CD (2016-06-25):
 	 * --------------------------
-	 * reg 는 아래의 "reg = <0 0>" 값으로 설정 된다.
+	 * reg 는 아래의 "reg = <0 0x3c000000>" 값으로 설정 된다.
 	 * / {
 	 * 	#address-cells = <1>;
 	 * 	#size-cells = <1>;
 	 * 	chosen { };
 	 * 	aliases { };
-	 * 	memory { device_type = "memory"; reg = <0 0>; };
+	 * 	memory { device_type = "memory"; reg = <0 0x3c000000>; };
 	 * };
+	 * 0x3c000000 : 980Mb	uboot가 설정한듯함.
 	 */
 	reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
 	if (reg == NULL)
@@ -1023,8 +1024,8 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 
 	/* IAMROOT-12CD (2016-07-02):
 	 * --------------------------
-	 * 라즈베리파이 2의 경우 reg = <0 0> 이기 때문에 (l / sizeof(__be32)) 값
-	 * 은 2이기 때문에 l = 8
+	 * 라즈베리파이 2의 경우 reg = <0 0x3c000000> 이기 때문에
+	 * (l / sizeof(__be32)) 값은 2이기 때문에 l = 8
 	 */
 	endp = reg + (l / sizeof(__be32));
 

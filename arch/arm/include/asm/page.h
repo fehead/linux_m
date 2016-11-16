@@ -12,6 +12,10 @@
 
 /* PAGE_SHIFT determines the page size */
 #define PAGE_SHIFT		12
+/* IAMROOT-12 fehead (2016-10-25):
+ * --------------------------
+ * PAGE_SIZE = 1 << 12 = 0x1000 = 4096
+ */
 #define PAGE_SIZE		(_AC(1,UL) << PAGE_SHIFT)
 /* IAMROOT-12CD (2016-09-24):
  * --------------------------

@@ -51,6 +51,10 @@ EXPORT_SYMBOL(empty_zero_page);
 /*
  * The pmd table for the upper-most set of pages.
  */
+/* IAMROOT-12 fehead (2016-11-16):
+ * --------------------------
+ * 맨 위에있는 페이지 집합에 대한 pmd 테이블입니다.
+ */
 pmd_t *top_pmd;
 
 /* IAMROOT-12CD (2016-08-23):
@@ -1151,13 +1155,13 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
  * pgd 0x80006000, addr=0x80000000, end = 0x80200000, phys = 0
  * type = &mem_types[MT_MEMORY_RWX]
  * 
- * next		pgd		addr		phys
- * 0x80200000	0x80006000	0x80000000	0
- * 0x80400000	0x80006008	0x80200000	0x200000
- * 0x80600000	0x8000600c	0x80400000	0x400000
- * 0x80800000	0x80006010	0x80600000	0x600000
- * 0x80c00000	0x80006018	0x80800000	0x800000
- * 0x81000000	0x8000601c	0x80900000	0x1000000
+ * pgd		addr		end		phys
+ * 0x80006000	0x80000000	0x80200000	0
+ * 0x80006008	0x80200000	0x80400000	0x200000
+ * 0x8000600c	0x80400000	0x80600000	0x400000
+ * 0x80006010	0x80600000	0x80800000	0x600000
+ * 0x80006018	0x80800000	0x80c00000	0x800000
+ * 0x8000601c	0x80900000	0x81000000	0x1000000
  */
 static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
 				  unsigned long end, phys_addr_t phys,
@@ -1308,21 +1312,31 @@ static void __init create_mapping(struct map_desc *md)
 	/* IAMROOT-12CD (2016-09-24):
 	 * --------------------------
 	 * md->virtual = 0x80000000
+	 * md->length = 0x900000
 	 * addr = 0x80000000
 	 * phys = 0
-	 * length = 
-	 * md.length = 0x900000 + (0x80000000 & ~PAGE_MASK) = 0x900000
+	 * length = 0x900000 + (0x80000000 & ~PAGE_MASK) = 0x900000
 	 */
 	addr = md->virtual & PAGE_MASK;
 	phys = __pfn_to_phys(md->pfn);
 	length = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));
 
+	/* IAMROOT-12AB:
+	 * -------------
+	 * 메모리 타입이 섹션 매핑만 지원되는 타입이 있다.
+	 * 그런 경우 섹션 align 되어 있지 않은 섹션 매핑 요청은 에러
+	 */
 	if (type->prot_l1 == 0 && ((addr | phys | length) & ~SECTION_MASK)) {
 		pr_warn("BUG: map for 0x%08llx at 0x%08lx can not be mapped using pages, ignoring.\n",
 			(long long)__pfn_to_phys(md->pfn), addr);
 		return;
 	}
 
+	/* IAMROOT-12AB:
+	 * -------------
+	 * pgd: pgd 엔트리 주소 
+	 *	rpi2: 0x8000_4000 ~ 0x8000_8000
+	 */
 	/* IAMROOT-12CD (2016-10-03):
 	 * --------------------------
 	 * pgd = 0x80006000
@@ -1894,6 +1908,7 @@ static void __init map_lowmem(void)
 	 * --------------------------
 	 * _stext = 0x80008240, kernel_x_start = 0x0
 	 * __init_end = 0x8080c000, kernel_x_end = 0x900000
+	 * 커널 코드와 데이터는 섹션 매핑을 사용한다.
 	 */
 	phys_addr_t kernel_x_start = round_down(__pa(_stext), SECTION_SIZE);
 	phys_addr_t kernel_x_end = round_up(__pa(__init_end), SECTION_SIZE);
@@ -1934,6 +1949,13 @@ static void __init map_lowmem(void)
 			create_mapping(&map);
 		} else {
 			/* This better cover the entire kernel */
+			/* IAMROOT-12AB:
+			 * -------------
+			 * 가장 일반적인 커널이 포함된 memblock으로 커널 부분만
+			 * RWX로 매핑하고 나머지 영역은 RW로 매핑한다.
+			 * rpi2: 가장 아래 커널이 위치한 공간이 RWX로 매핑되고
+			 *       나머지 공간은 RW로 매핑된다.
+			 */
 			/* IAMROOT-12CD (2016-09-24):
 			 * --------------------------
 			 * 커널 전체를 커버 해야한다.

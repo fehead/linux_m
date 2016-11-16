@@ -83,6 +83,10 @@ extern void setup_dma_zone(const struct machine_desc *desc);
 
 unsigned int processor_id;
 EXPORT_SYMBOL(processor_id);
+/* IAMROOT-12CD (2016-07-02):
+ * --------------------------
+ * __machine_arch_type = MACH_TYPE_BCM_2709
+ */
 unsigned int __machine_arch_type __read_mostly;
 EXPORT_SYMBOL(__machine_arch_type);
 /* IAMROOT-12D (2016-05-25):
@@ -212,6 +216,10 @@ static const char *cpu_name;
  * machine_name = "BCM_2709"
  */
 static const char *machine_name;
+/* IAMROOT-12 fehead (2016-11-16):
+ * --------------------------
+ * "rw earlyprintk loglevel=8 console=ttyAMA0,115200 console=tty1 dwc_otg.lpm_enable=0 root=/dev/mmcblk0p2"
+ */
 static char __initdata cmd_line[COMMAND_LINE_SIZE];
 /* IAMROOT-12D (2016-06-09):
  * --------------------------

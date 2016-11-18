@@ -234,6 +234,10 @@ phys_addr_t __init arm_memblock_steal(phys_addr_t size, phys_addr_t align)
 	return phys;
 }
 
+/* IAMROOT-12 fehead (2016-11-17):
+ * --------------------------
+ * 커널 텍스트, 커널 데이터 및 initrd를 memblock에 등록합니다.
+ */
 void __init arm_memblock_init(const struct machine_desc *mdesc)
 {
 	/* Register the kernel text, kernel data and initrd with memblock. */

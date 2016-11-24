@@ -141,6 +141,10 @@ int __cpu_up(unsigned int cpu, struct task_struct *idle)
 /* platform specific SMP operations */
 void __init smp_init_cpus(void)
 {
+	/* IAMROOT-12 fehead (2016-11-24):
+	 * --------------------------
+	 * pi2: smp_ops.smp_init_cpus = bcm2709_smp_init_cpus
+	 */
 	if (smp_ops.smp_init_cpus)
 		smp_ops.smp_init_cpus();
 }
@@ -443,6 +447,10 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	}
 }
 
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * smp_cross_call = bcm2835_send_doorbell;
+ */
 static void (*__smp_cross_call)(const struct cpumask *, unsigned int);
 
 void __init set_smp_cross_call(void (*fn)(const struct cpumask *, unsigned int))

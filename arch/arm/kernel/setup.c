@@ -1351,6 +1351,10 @@ void __init setup_arch(char **cmdline_p)
 
 	reserve_crashkernel();
 
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * 라즈베리파이2는 아래와 관계 없음.
+ */
 #ifdef CONFIG_MULTI_IRQ_HANDLER
 	handle_arch_irq = mdesc->handle_irq;
 #endif
@@ -1359,10 +1363,18 @@ void __init setup_arch(char **cmdline_p)
 #if defined(CONFIG_VGA_CONSOLE)
 	conswitchp = &vga_con;
 #elif defined(CONFIG_DUMMY_CONSOLE)
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * pi2
+ */
 	conswitchp = &dummy_con;
 #endif
 #endif
 
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * bcm2709_init_early
+ */
 	if (mdesc->init_early)
 		mdesc->init_early();
 }

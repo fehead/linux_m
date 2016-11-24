@@ -468,6 +468,11 @@ struct mm_struct {
 #endif
 };
 
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * mm_init_cpumask(&init_mm)
+ * init_mm.cpu_vm_mask_var 를 clear(bzero) 한다.
+ */
 static inline void mm_init_cpumask(struct mm_struct *mm)
 {
 #ifdef CONFIG_CPUMASK_OFFSTACK

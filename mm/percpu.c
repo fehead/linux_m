@@ -2191,6 +2191,10 @@ static void __init pcpu_dfl_fc_free(void *ptr, size_t size)
 	memblock_free_early(__pa(ptr), size);
 }
 
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * pi2
+ */
 void __init setup_per_cpu_areas(void)
 {
 	unsigned long delta;

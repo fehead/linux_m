@@ -21,6 +21,10 @@
 #endif
 
 /* Places which use this should consider cpumask_var_t. */
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * NR_CPUS = 4
+ */
 #define NR_CPUS		CONFIG_NR_CPUS
 
 #define MIN_THREADS_LEFT_FOR_ROOT 4

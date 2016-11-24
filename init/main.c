@@ -145,11 +145,24 @@ void (*__initdata late_time_init)(void);
  * /boot/cmdline.txt
  *  dwc_otg.lpm_enable=0 console=serial0,115200 console=tty1 root=/dev/mmcblk0p2
  *  rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait
+ *
+ * IAMROOT-12 fehead (2016-11-24):
+ * boot_command_line = "rw earlyprintk loglevel=8 console=ttyAMA0,115200 console=tty1 dwc_otg.lpm_enable=0 root=/dev/mmcblk0p2"
  */
 char __initdata boot_command_line[COMMAND_LINE_SIZE];
 /* Untouched saved command line (eg. for /proc) */
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * "rw earlyprintk loglevel=8 console=ttyAMA0,115200 console
+ *	=tty1 dwc_otg.lpm_enable=0 root=/dev/mmcblk0p2"
+ */
 char *saved_command_line;
 /* Command line for parameter parsing */
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * "rw earlyprintk loglevel=8 console=ttyAMA0,115200 console
+ *	=tty1 dwc_otg.lpm_enable=0 root=/dev/mmcblk0p2"
+ */
 static char *static_command_line;
 /* Command line for per-initcall parameter parsing */
 static char *initcall_command_line;

@@ -120,6 +120,10 @@ struct con_driver {
 };
 
 static struct con_driver registered_con_driver[MAX_NR_CON_DRIVER];
+/* IAMROOT-12 fehead (2016-11-24):
+ * --------------------------
+ * conswitchp = &dummy_con;
+ */
 const struct consw *conswitchp;
 
 /* A bitmap for codes <32. A bit of 1 indicates that the code
